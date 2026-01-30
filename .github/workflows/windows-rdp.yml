@@ -1,0 +1,80 @@
+name: Windows RDP Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup-windows-rdp:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Enable RDP
+        shell: powershell
+        run: |
+          # Enable RDP
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+          Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+          
+          # Allow RDP port 3389
+          New-NetFirewallRule -DisplayName "Allow RDP Port 3389" -Direction Inbound -LocalPort 3389 -Protocol TCP -Action Allow
+          
+          echo "RDP enabled on port 3389"
+      
+      - name: Install Chocolatey
+        shell: powershell
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+      
+      - name: Install Tailscale
+        shell: powershell
+        run: |
+          choco install tailscale -y
+          
+          # Wait for installation to complete
+          Start-Sleep -Seconds 5
+          
+          # Directly run tailscale up
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey tskey-auth-k4gjj7pHD611CNTRL-t48xz2S127HYbD1pxBDy6HaWHvHTLjne --accept-routes
+          
+          # Wait for connection to be established
+          Start-Sleep -Seconds 15
+          
+          # Get Tailscale IP
+          $tailscale_ip = (& "C:\Program Files\Tailscale\tailscale.exe" ip -4)
+          echo "Tailscale IP: $tailscale_ip"
+          echo "TAILSCALE_IP=$tailscale_ip" >> $env:GITHUB_ENV
+      
+      - name: Display RDP connection information
+        shell: powershell
+        run: |
+          echo "============================================"
+          echo "RDP Setup Complete!"
+          echo "============================================"
+          echo ""
+          echo "Tailscale IP: $env:TAILSCALE_IP"
+          echo "RDP Port: 3389"
+          echo ""
+          echo "RDP Connection:"
+          echo "Computer: $env:TAILSCALE_IP:3389"
+          echo "Username: runneradmin"
+          echo "Password: (use GitHub runner credentials)"
+          echo ""
+          echo "============================================"
+      
+      - name: Keep runner alive
+        shell: powershell
+        run: |
+          # Keep the workflow running to maintain the RDP session
+          Write-Host "Keeping workflow alive for RDP access..."
+          Write-Host "Press Ctrl+C to stop the workflow"
+          while ($true) {
+            Start-Sleep -Seconds 60
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            Write-Host "[$timestamp] Workflow still running - RDP accessible"
+          }
