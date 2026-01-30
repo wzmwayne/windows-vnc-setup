@@ -57,7 +57,7 @@ jobs:
           refreshenv
           
           # Start Tailscale service
-          $serviceName = Get-Service | Where-Object { $_.Name -like "*tailscale*" } | Select-Object -FirstProperty Name
+          $serviceName = Get-Service | Where-Object { $_.Name -like "*tailscale*" } | Select-Object -First 1 -ExpandProperty Name
           if ($serviceName) {
             Start-Service $serviceName.Name
           } else {
