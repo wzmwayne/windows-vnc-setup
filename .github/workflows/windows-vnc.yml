@@ -1,0 +1,116 @@
+name: Windows VNC Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup-windows-vnc:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Configure VNC and noVNC password
+        shell: powershell
+        run: |
+          $vnc_password = "wzm120727!"
+          $vnc_password | Out-File -FilePath C:\vnc_password.txt -Encoding ASCII -NoNewline
+          echo "VNC password configured"
+      
+      - name: Install Chocolatey
+        shell: powershell
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+      
+      - name: Install TightVNC
+        shell: powershell
+        run: |
+          choco install tightvnc -y --params '/PASSWORD:wzm120727! /CONTROLPASSWORD:wzm120727!'
+      
+      - name: Install noVNC
+        shell: powershell
+        run: |
+          # Install Python
+          choco install python -y
+          
+          # Clone noVNC
+          cd C:\
+          git clone https://github.com/novnc/noVNC.git
+          git clone https://github.com/novnc/websockify.git
+          
+          # Copy websockify to noVNC
+          Copy-Item -Recurse -Force C:\websockify C:\noVNC\utils\websockify
+          
+          # Configure noVNC to use VNC password
+          cd C:\noVNC
+          echo "wzm120727!" | Out-File -FilePath vncpasswd.txt -Encoding ASCII -NoNewline
+      
+      - name: Install Tailscale
+        shell: powershell
+        run: |
+          choco install tailscale -y
+          
+          # Start Tailscale service
+          Start-Service tailscaled
+          
+          # Authenticate with auth key
+          tailscale up --authkey tskey-auth-k4gjj7pHD611CNTRL-t48xz2S127HYbD1pxBDy6HaWHvHTLjne --accept-routes
+          
+          # Get Tailscale IP
+          $tailscale_ip = (tailscale ip -4)
+          echo "Tailscale IP: $tailscale_ip"
+          echo "TAILSCALE_IP=$tailscale_ip" >> $env:GITHUB_ENV
+      
+      - name: Start TightVNC Server
+        shell: powershell
+        run: |
+          # Start VNC server
+          Start-Process "C:\Program Files\TightVNC\tvnserver.exe" -ArgumentList "-controlservice", "-run"
+          
+          # Configure VNC server
+          & "C:\Program Files\TightVNC\tvnserver.exe" -controlservice -setconfig -password wzm120727!
+          
+          echo "TightVNC server started"
+      
+      - name: Start noVNC
+        shell: powershell
+        run: |
+          # Start noVNC in background
+          $process = Start-Process -FilePath "python" -ArgumentList "C:\noVNC\utils\novnc_proxy.py", "--vnc", "localhost:5900", "--listen", "6080" -WindowStyle Hidden -PassThru
+          
+          # Wait a moment for service to start
+          Start-Sleep -Seconds 5
+          
+          echo "noVNC started on port 6080"
+          echo "NOVNC_URL=http://localhost:6080/vnc.html" >> $env:GITHUB_ENV
+      
+      - name: Display connection information
+        shell: powershell
+        run: |
+          echo "============================================"
+          echo "VNC and noVNC Setup Complete!"
+          echo "============================================"
+          echo ""
+          echo "VNC Password: wzm120727!"
+          echo "Tailscale IP: $env:TAILSCALE_IP"
+          echo ""
+          echo "Connection Methods:"
+          echo "1. VNC Client: $env:TAILSCALE_IP:5900"
+          echo "2. noVNC (Web): http://$env:TAILSCALE_IP:6080/vnc.html"
+          echo ""
+          echo "============================================"
+      
+      - name: Keep runner alive
+        shell: powershell
+        run: |
+          # Keep the workflow running to maintain the VNC session
+          Write-Host "Keeping workflow alive for VNC access..."
+          Write-Host "Press Ctrl+C to stop the workflow"
+          while ($true) {
+            Start-Sleep -Seconds 60
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            Write-Host "[$timestamp] Workflow still running - VNC accessible"
+          }
