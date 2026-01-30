@@ -53,14 +53,23 @@ jobs:
         run: |
           choco install tailscale -y
           
-          # Start Tailscale service
-          Start-Service tailscaled
+          # Refresh environment variables
+          refreshenv
           
-          # Authenticate with auth key
-          tailscale up --authkey tskey-auth-k4gjj7pHD611CNTRL-t48xz2S127HYbD1pxBDy6HaWHvHTLjne --accept-routes
+          # Start Tailscale service
+          $serviceName = Get-Service | Where-Object { $_.Name -like "*tailscale*" } | Select-Object -FirstProperty Name
+          if ($serviceName) {
+            Start-Service $serviceName.Name
+          } else {
+            # Try to start tailscaled directly
+            Start-Process "C:\Program Files\Tailscale\tailscale.exe" -ArgumentList "up", "--authkey", "tskey-auth-k4gjj7pHD611CNTRL-t48xz2S127HYbD1pxBDy6HaWHvHTLjne", "--accept-routes"
+          }
+          
+          # Wait for service to be ready
+          Start-Sleep -Seconds 10
           
           # Get Tailscale IP
-          $tailscale_ip = (tailscale ip -4)
+          $tailscale_ip = (& "C:\Program Files\Tailscale\tailscale.exe" ip -4)
           echo "Tailscale IP: $tailscale_ip"
           echo "TAILSCALE_IP=$tailscale_ip" >> $env:GITHUB_ENV
       
