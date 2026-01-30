@@ -14,9 +14,7 @@ jobs:
       - name: Configure VNC and noVNC password
         shell: powershell
         run: |
-          $vnc_password = "wzm120727!"
-          $vnc_password | Out-File -FilePath C:\vnc_password.txt -Encoding ASCII -NoNewline
-          echo "VNC password configured"
+          echo "VNC will run without password"
       
       - name: Install Chocolatey
         shell: powershell
@@ -28,7 +26,7 @@ jobs:
       - name: Install TightVNC
         shell: powershell
         run: |
-          choco install tightvnc -y --params '/PASSWORD:wzm120727! /CONTROLPASSWORD:wzm120727!'
+          choco install tightvnc -y
       
       - name: Install noVNC
         shell: powershell
@@ -85,9 +83,6 @@ jobs:
           # Start VNC server
           Start-Process "C:\Program Files\TightVNC\tvnserver.exe" -ArgumentList "-controlservice", "-run"
           
-          # Configure VNC server
-          & "C:\Program Files\TightVNC\tvnserver.exe" -controlservice -setconfig -password wzm120727!
-          
           echo "TightVNC server started"
       
       - name: Start noVNC
@@ -109,7 +104,7 @@ jobs:
           echo "VNC and noVNC Setup Complete!"
           echo "============================================"
           echo ""
-          echo "VNC Password: wzm120727!"
+          echo "VNC Password: (none - no authentication)"
           echo "Tailscale IP: $env:TAILSCALE_IP"
           echo ""
           echo "Connection Methods:"
