@@ -31,6 +31,24 @@ jobs:
           [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
           iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
       
+      - name: Create RDP user
+        shell: powershell
+        run: |
+          # Create new user for RDP
+          $username = "rdpuser"
+          $password = "Aa123456!"
+          
+          $securePassword = ConvertTo-SecureString $password -AsPlainText -Force
+          New-LocalUser -Name $username -Password $securePassword -FullName "RDP User" -Description "User for RDP access"
+          
+          # Add user to Remote Desktop Users group
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member $username
+          
+          # Add user to Administrators group
+          Add-LocalGroupMember -Group "Administrators" -Member $username
+          
+          echo "RDP user created: $username"
+      
       - name: Install Tailscale
         shell: powershell
         run: |
@@ -62,8 +80,8 @@ jobs:
           echo ""
           echo "RDP Connection:"
           echo "Computer: $env:TAILSCALE_IP:3389"
-          echo "Username: runneradmin"
-          echo "Password: (use GitHub runner credentials)"
+          echo "Username: rdpuser"
+          echo "Password: Aa123456!"
           echo ""
           echo "============================================"
       
