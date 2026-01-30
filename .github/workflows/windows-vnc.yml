@@ -53,20 +53,14 @@ jobs:
         run: |
           choco install tailscale -y
           
-          # Refresh environment variables
-          refreshenv
+          # Wait for installation to complete
+          Start-Sleep -Seconds 5
           
-          # Start Tailscale service
-          $serviceName = Get-Service | Where-Object { $_.Name -like "*tailscale*" } | Select-Object -First 1 -ExpandProperty Name
-          if ($serviceName) {
-            Start-Service $serviceName.Name
-          } else {
-            # Try to start tailscaled directly
-            Start-Process "C:\Program Files\Tailscale\tailscale.exe" -ArgumentList "up", "--authkey", "tskey-auth-k4gjj7pHD611CNTRL-t48xz2S127HYbD1pxBDy6HaWHvHTLjne", "--accept-routes"
-          }
+          # Directly run tailscale up
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey tskey-auth-k4gjj7pHD611CNTRL-t48xz2S127HYbD1pxBDy6HaWHvHTLjne --accept-routes
           
-          # Wait for service to be ready
-          Start-Sleep -Seconds 10
+          # Wait for connection to be established
+          Start-Sleep -Seconds 15
           
           # Get Tailscale IP
           $tailscale_ip = (& "C:\Program Files\Tailscale\tailscale.exe" ip -4)
