@@ -67,6 +67,18 @@ jobs:
           echo "Tailscale IP: $tailscale_ip"
           echo "TAILSCALE_IP=$tailscale_ip" >> $env:GITHUB_ENV
       
+      - name: Configure Firewall
+        shell: powershell
+        run: |
+          # Disable Windows Firewall for all profiles
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+          
+          # Or alternatively, allow specific ports
+          New-NetFirewallRule -DisplayName "Allow VNC Port 5900" -Direction Inbound -LocalPort 5900 -Protocol TCP -Action Allow
+          New-NetFirewallRule -DisplayName "Allow noVNC Port 6080" -Direction Inbound -LocalPort 6080 -Protocol TCP -Action Allow
+          
+          echo "Firewall configured"
+      
       - name: Start TightVNC Server
         shell: powershell
         run: |
