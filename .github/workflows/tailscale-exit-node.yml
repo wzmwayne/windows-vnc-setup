@@ -1,0 +1,105 @@
+name: Tailscale Exit Node Setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup-exit-node:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install Chocolatey
+        shell: powershell
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+      
+      - name: Install Tailscale
+        shell: powershell
+        run: |
+          choco install tailscale -y
+          
+          # Wait for installation to complete
+          Start-Sleep -Seconds 5
+      
+      - name: Configure as Exit Node
+        shell: powershell
+        run: |
+          Write-Host "Configuring Tailscale as Exit Node..."
+          
+          # Login to Tailscale with authkey
+          & "C:\Program Files\Tailscale\tailscale.exe" up --authkey tskey-auth-k4gjj7pHD611CNTRL-t48xz2S127HYbD1pxBDy6HaWHvHTLjne --advertise-exit-node
+          
+          # Wait for connection to be established
+          Start-Sleep -Seconds 15
+          
+          # Get Tailscale IP
+          $tailscale_ip = (& "C:\Program Files\Tailscale\tailscale.exe" ip -4)
+          echo "Tailscale IP: $tailscale_ip"
+          echo "TAILSCALE_IP=$tailscale_ip" >> $env:GITHUB_ENV
+          
+          # Verify exit node status
+          $exit_node_status = & "C:\Program Files\Tailscale\tailscale.exe" status --json
+          echo "Exit node status: $exit_node_status"
+      
+      - name: Configure Firewall for Exit Node
+        shell: powershell
+        run: |
+          Write-Host "Configuring firewall for Exit Node..."
+          
+          # Disable Windows Firewall for all profiles to allow all traffic
+          Set-NetFirewallProfile -Profile Domain,Public,Private -Enabled False
+          
+          # Allow Tailscale traffic
+          $interfaces = Get-NetAdapter | Where-Object {$_.InterfaceDescription -like "*Tailscale*"}
+          foreach ($interface in $interfaces) {
+            $rule_name = "Tailscale_" + $interface.Name
+            New-NetFirewallRule -DisplayName $rule_name -InterfaceAlias $interface.Name -Direction Inbound -Action Allow -Profile Any
+            echo "Created firewall rule for interface: $($interface.Name)"
+          }
+          
+          echo "Exit Node firewall configured"
+      
+      - name: Display Exit Node Information
+        shell: powershell
+        run: |
+          echo "============================================"
+          echo "Tailscale Exit Node Setup Complete!"
+          echo "============================================"
+          echo ""
+          echo "Exit Node IP: $env:TAILSCALE_IP"
+          echo "Exit Node Status: Configured"
+          echo ""
+          echo "Exit Node Features:"
+          echo "- Can be used as exit node for other Tailscale clients"
+          echo "- Routes traffic through this node"
+          echo "- Provides internet access for Tailscale network"
+          echo ""
+          echo "Usage:"
+          echo "1. Configure other Tailscale clients to use this exit node"
+          echo "2. Traffic from those clients will route through this node"
+          echo "3. Use 'tailscale status' to verify exit node configuration"
+          echo ""
+          echo "============================================"
+      
+      - name: Keep runner alive as Exit Node
+        shell: powershell
+        run: |
+          Write-Host "Keeping workflow alive as Exit Node..."
+          Write-Host "Press Ctrl+C to stop the workflow"
+          
+          while ($true) {
+            Start-Sleep -Seconds 60
+            $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+            Write-Host "[$timestamp] Workflow still running - Exit Node active"
+            
+            # Verify Tailscale is still running
+            $tailscale_status = & "C:\Program Files\Tailscale\tailscale.exe" status
+            if ($tailscale_status -like "*Exit node:*") {
+              Write-Host "Exit node status: Active"
+            }
+          }
